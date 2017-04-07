@@ -13,7 +13,7 @@ const port = "8080"
 // RunHost takes an IP as an argument
 // and listens for connections on that IP.
 func RunHost(ip string) {
-	ipAndPort := ip + ":" + port
+	ipAndPort := fmt.Sprintf("%s:%s", ip, port)
 
 	listener, listenErr := net.Listen("tcp", ipAndPort)
 	if listenErr != nil {
@@ -21,62 +21,59 @@ func RunHost(ip string) {
 	}
 	fmt.Println("Listening on", ipAndPort)
 
+	defer listener.Close()
+
 	conn, acceptErr := listener.Accept()
 	if acceptErr != nil {
 		log.Fatal("Error: ", acceptErr)
 	}
 	fmt.Println("New connection accepted")
 
-	for {
-		handleHost(conn)
-	}
-}
+	defer conn.Close()
 
-func handleHost(conn net.Conn) {
 	reader := bufio.NewReader(conn)
-	message, readErr := reader.ReadString('\n')
-	if readErr != nil {
-		log.Fatal("Error: ", readErr)
-	}
-	fmt.Println("Message received: ", message)
+	writer := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Send message: ")
-	replyReader := bufio.NewReader(os.Stdin)
-	replyMessage, replyErr := replyReader.ReadString('\n')
-	if replyErr != nil {
-		log.Fatal("Error: ", replyErr)
+	for {
+		getMessage(conn, *reader)
+		sendMessage(conn, *writer)
 	}
-	fmt.Fprint(conn, replyMessage)
 }
 
 // RunGuest takes a destination IP as an
 // argument and connects to that IP.
 func RunGuest(ip string) {
-	ipAndPort := ip + ":" + port
+	ipAndPort := fmt.Sprintf("%s:%s", ip, port)
 
 	conn, dialErr := net.Dial("tcp", ipAndPort)
 	if dialErr != nil {
 		log.Fatal("Error: ", dialErr)
 	}
 
+	defer conn.Close()
+
+	reader := bufio.NewReader(conn)
+	writer := bufio.NewReader(os.Stdin)
+
 	for {
-		handleGuest(conn)
+		sendMessage(conn, *writer)
+		getMessage(conn, *reader)
 	}
 }
 
-func handleGuest(conn net.Conn) {
+func getMessage(conn net.Conn, reader bufio.Reader) {
+	message, receiveErr := reader.ReadString('\n')
+	if receiveErr != nil {
+		log.Fatal("Error: ", receiveErr)
+	}
+	fmt.Println("Message received: ", message)
+}
+
+func sendMessage(conn net.Conn, writer bufio.Reader) {
 	fmt.Print("Send message: ")
-	reader := bufio.NewReader(os.Stdin)
-	message, readErr := reader.ReadString('\n')
-	if readErr != nil {
-		log.Fatal("Error: ", readErr)
+	message, sendErr := writer.ReadString('\n')
+	if sendErr != nil {
+		log.Fatal("Error: ", sendErr)
 	}
 	fmt.Fprint(conn, message)
-
-	replyReader := bufio.NewReader(conn)
-	replyMessage, replyErr := replyReader.ReadString('\n')
-	if replyErr != nil {
-		log.Fatal("Error: ", replyErr)
-	}
-	fmt.Println("Message received: ", replyMessage)
 }
